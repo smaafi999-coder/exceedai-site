@@ -3,6 +3,68 @@
 <head>
   <meta charset="utf-8">
   <script>try{history.scrollRestoration="manual"}catch(e){}(function(){if(location.hash){try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}}var moved=false;["touchstart","wheel","keydown"].forEach(function(ev){window.addEventListener(ev,function(){moved=true},{passive:true,once:true})});function top(){if(!moved)window.scrollTo({top:0,left:0,behavior:"instant"})}window.addEventListener("pageshow",top);[0,300,800,1500].forEach(function(d){setTimeout(top,d)})})();</script>
+<script>
+/* "How it works": one scroll gesture = one step (hard stop), like the proof cards. */
+(function () {
+  var busy = false, lastEvt = 0, startT = 0, touchY = null, touchDone = false;
+  function geo() {
+    var so = document.getElementById('solution');
+    if (!so) return null;
+    var pin = so.querySelector('[data-sol-pin]');
+    var cs = getComputedStyle(so);
+    var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+    var T = pin ? (parseFloat(getComputedStyle(pin).top) || 0) : 0;
+    var tot = so.clientHeight - padT - padB - (pin ? pin.offsetHeight : innerHeight);
+    if (tot <= 0) return null;
+    return { base: so.getBoundingClientRect().top + scrollY + padT - T, tot: tot };
+  }
+  function anchor(k) { return k === 0 ? 0 : k / 4 + 0.05; }
+  function release() {
+    var t = Date.now();
+    if (busy && t - lastEvt > 200 && t - startT > 650) busy = false;
+    if (busy) setTimeout(release, 60);
+  }
+  /* returns true if the event was handled (and must be blocked) */
+  function step(dir) {
+    var g = geo();
+    if (!g) return false;
+    var pr = (scrollY - g.base) / g.tot;
+    if (pr < -0.03 || pr >= 1) return false;            /* outside the pinned zone */
+    var k = Math.min(3, Math.max(0, Math.floor(Math.max(0, pr) * 4)));
+    var nk;
+    if (dir > 0) {
+      if (pr < anchor(k) - 0.01) nk = k;                /* entering: land on the current step first */
+      else if (k === 3) return false;                   /* after 04: continue down the page */
+      else nk = k + 1;
+    } else {
+      if (k === 0 && pr <= 0.01) return false;          /* before 01: continue up the page */
+      nk = Math.max(0, k - 1);
+    }
+    if (busy) return true;
+    busy = true; startT = Date.now();
+    window.scrollTo({ top: g.base + g.tot * anchor(nk), behavior: 'smooth' });
+    setTimeout(release, 60);
+    return true;
+  }
+  window.addEventListener('wheel', function (e) {
+    lastEvt = Date.now();
+    if (Math.abs(e.deltaY) < 2) return;
+    if (step(e.deltaY > 0 ? 1 : -1)) e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('touchstart', function (e) {
+    touchY = e.touches[0].clientY; touchDone = false;
+  }, { passive: true });
+  window.addEventListener('touchmove', function (e) {
+    if (touchY === null) return;
+    var dy = touchY - e.touches[0].clientY;
+    lastEvt = Date.now();
+    if (touchDone) { if (busy) e.preventDefault(); return; }
+    if (Math.abs(dy) < 12) return;
+    if (step(dy > 0 ? 1 : -1)) { touchDone = true; e.preventDefault(); }
+  }, { passive: false });
+  window.addEventListener('touchend', function () { touchY = null; }, { passive: true });
+})();
+</script>
   <title>Exceed AI | Ads + AI booking for Doha businesses</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
